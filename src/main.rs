@@ -55,12 +55,10 @@ impl EventHandler for Handler {
 
         let commands = guild_id
             .set_commands(&ctx.http, vec![
-                // commands::ping::register(),
-                commands::id::register(),
-                // commands::welcome::register(),
-                // commands::numberinput::register(),
-                // commands::attachmentinput::register(),
-                // commands::modal::register(),
+                commands::id::register(), // used as hello world for now. todo: remove
+                commands::start::register(),
+                commands::status::register(),
+                commands::list::register(),
             ])
             .await;
 
