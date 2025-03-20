@@ -1,11 +1,12 @@
 use std::env;
 
 use dotenv;
+use serenity::all::EditInteractionResponse;
 use serenity::async_trait;
 use serenity::builder::{CreateInteractionResponse, CreateInteractionResponseMessage};
 use serenity::model::application::{Command, Interaction};
-use serenity::model::id::GuildId;
 use serenity::model::gateway::Ready;
+use serenity::model::id::GuildId;
 use serenity::prelude::*;
 
 mod commands;
@@ -22,18 +23,32 @@ impl EventHandler for Handler {
         if let Interaction::Command(command) = interaction {
             println!("Received command interaction: {command:#?}");
 
+            let mut defered = false;
             let content = match command.data.name.as_str() {
-                // "ping" => Some(commands::ping::run(&command.data.options())),
                 "id" => Some(commands::id::run(&command.data.options())),
-                // "attachmentinput" => Some(commands::attachmentinput::run(&command.data.options())),
-                // "modal" => {
-                //     commands::modal::run(&ctx, &command).await.unwrap();
-                //     None
-                // },
+                "rating" => {
+                    let result = commands::rating::run(&ctx, &command);
+                    defered = true;
+
+                    let data = CreateInteractionResponseMessage::new().content("working on it!");
+                    let builder = CreateInteractionResponse::Message(data);
+                    if let Err(why) = command.create_response(&ctx.http, builder).await {
+                        println!("Cannot respond to slash command: {why}");
+                    }
+
+                    Some(result.await)
+                }
                 _ => Some("not implemented :(".to_string()),
             };
 
-            if let Some(content) = content {
+            if defered {
+                if let Some(content) = content {
+                    let data = CreateInteractionResponseMessage::new().content(&content);
+                    if let Err(why) = command.edit_response(&ctx.http, EditInteractionResponse::new().content(content)).await {
+                        println!("Cannot respond to slash command: {why}");
+                    }
+                }
+            } else if let Some(content) = content {
                 let data = CreateInteractionResponseMessage::new().content(content);
                 let builder = CreateInteractionResponse::Message(data);
                 if let Err(why) = command.create_response(&ctx.http, builder).await {
@@ -54,12 +69,16 @@ impl EventHandler for Handler {
         );
 
         let commands = guild_id
-            .set_commands(&ctx.http, vec![
-                commands::id::register(), // used as hello world for now. todo: remove
-                commands::start::register(),
-                commands::status::register(),
-                commands::list::register(),
-            ])
+            .set_commands(
+                &ctx.http,
+                vec![
+                    commands::id::register(), // used as hello world for now. todo: remove
+                    commands::rating::register(),
+                    // commands::start::register(),
+                    // commands::status::register(),
+                    // commands::list::register(),
+                ],
+            )
             .await;
 
         println!("I now have the following guild slash commands: {commands:#?}");
