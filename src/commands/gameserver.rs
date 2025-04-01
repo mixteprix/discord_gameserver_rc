@@ -56,9 +56,9 @@ fn status_gameserver(gameserver: String) -> String {
     // return wheter or not available
     //
 
-    if Path::new(&format!("{gameserver}/status.sh")).exists() {
+    if Path::new(&format!("gameservers/{gameserver}/status.sh")).exists() {
         let output = Command::new("bash")
-            .arg(format!("{gameserver}/status.sh"))
+            .arg(format!("gameservers/{gameserver}/status.sh"))
             .output()
             .expect("Failed to execute command");
 
