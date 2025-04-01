@@ -1,3 +1,4 @@
+
 use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::model::application::{CommandOptionType, ResolvedOption, ResolvedValue};
 
@@ -12,5 +13,5 @@ pub fn run() -> String {
 }
 
 pub fn register() -> CreateCommand {
-    CreateCommand::new("list").description("Print a list of all available servers")
+    CreateCommand::new("list").description("Prints information on how to use the bot.")
 }

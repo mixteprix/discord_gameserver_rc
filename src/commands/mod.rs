@@ -1,5 +1,4 @@
+pub mod gameserver;
+// pub mod help;
 pub mod id;
-pub mod list;
-pub mod start;
-pub mod status;
 pub mod rating;

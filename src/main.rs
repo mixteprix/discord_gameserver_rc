@@ -1,5 +1,6 @@
 use std::env;
 
+use commands::gameserver;
 use dotenv;
 use serenity::all::EditInteractionResponse;
 use serenity::async_trait;
@@ -37,7 +38,8 @@ impl EventHandler for Handler {
                     }
 
                     Some(result.await)
-                }
+                },
+                "gameserver" => Some(gameserver::run(&command.data.options(), command.user.id)),
                 _ => Some("not implemented :(".to_string()),
             };
 
@@ -74,9 +76,8 @@ impl EventHandler for Handler {
                 vec![
                     commands::id::register(), // used as hello world for now. todo: remove
                     commands::rating::register(),
-                    // commands::start::register(),
-                    // commands::status::register(),
-                    // commands::list::register(),
+                    commands::gameserver::register(),
+                    // commands::help::register(),
                 ],
             )
             .await;

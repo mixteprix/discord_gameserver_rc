@@ -61,7 +61,7 @@ fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str,
     for message in messages {
         for reaction in &message.reactions {
             if let ReactionType::Unicode(unicode) = &reaction.reaction_type {
-                if unicode.starts_with(&['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+                if unicode.starts_with(&['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) { // todo: do exact match, rather than this nonsense.
                     let score = reaction_data
                         .entry(message.author.name.as_str())
                         .or_insert(vec![unicode.as_bytes()[0] - 48]);
