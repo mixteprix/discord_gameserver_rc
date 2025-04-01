@@ -1,0 +1,5 @@
+{
+    "name": "Example Game",
+    "description": "Example Game, running the X mod.",
+    "ip": "[Your IP]:[Port this gameserver is on]"
+}
