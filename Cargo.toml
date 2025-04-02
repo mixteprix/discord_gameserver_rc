@@ -1,7 +1,7 @@
 [package]
-name = "e01_basic_ping_bot"
+name = "discord_gameserver_rc"
 version = "0.1.0"
-authors = ["my name <my@email.address>"]
+authors = ["Mixteprix realmixteprix@proton.me"]
 edition = "2018"
 
 [dependencies]
