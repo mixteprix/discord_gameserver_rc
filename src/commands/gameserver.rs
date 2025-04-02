@@ -72,7 +72,7 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
     // check whitelist for this one
 
     let mut whitelist: Vec<String> = vec![];
-    if let Ok(whitelist_file) = fs::read_to_string("whitelist") {
+    if let Ok(whitelist_file) = fs::read_to_string("gameservers/whitelist") {
         for line in whitelist_file.lines() {
             if !line.starts_with('#') {
                 whitelist.push(line.to_string());
