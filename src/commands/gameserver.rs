@@ -89,7 +89,7 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
             ..
         }) = options.first()
         {
-            if let Some(subcommand) = command.first() {
+            if let Some(subcommand) = command.get(1) {
                 println!("running {}", subcommand.name);
                 match subcommand.name {
                     "list" => list_gameservers(),
