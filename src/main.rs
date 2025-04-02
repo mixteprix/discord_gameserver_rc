@@ -22,7 +22,7 @@ impl EventHandler for Handler {
     // dispatched simultaneously.
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::Command(command) = interaction {
-            println!("Received command interaction: {command:#?}");
+            // println!("Received command interaction: {command:#?}");
 
             let mut defered = false;
             let content = match command.data.name.as_str() {
