@@ -90,28 +90,20 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
             ..
         }) = options.first()
         {
-            if let Some(subcommand) = command.get(1) {
+            if let Some(subcommand) = command.first() {
                 println!("running {}", subcommand.name);
                 match subcommand.name {
                     "list" => list_gameservers(),
                     "start" => {
-                        if let Some(ResolvedOption {
-                            value: ResolvedValue::String(gameserver),
-                            ..
-                        }) = options.get(2)
-                        {
-                            start_gameserver(gameserver.to_string())
+                        if let ResolvedValue::String(option) = subcommand.value {
+                            start_gameserver(option.to_owned())
                         } else {
                             "Ok, which one tho?".to_string()
                         }
                     }
                     "status" => {
-                        if let Some(ResolvedOption {
-                            value: ResolvedValue::String(gameserver),
-                            ..
-                        }) = options.get(2)
-                        {
-                            status_gameserver(gameserver.to_string())
+                        if let ResolvedValue::String(option) = subcommand.value {
+                            status_gameserver(option.to_owned())
                         } else {
                             "Ok, which one tho?".to_string()
                         }
