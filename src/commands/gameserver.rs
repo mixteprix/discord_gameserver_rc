@@ -43,11 +43,14 @@ fn start_gameserver(gameserver: String) -> String {
     // return Err("thing did not work") if it fails
 
     // spawning child may be unneccesary. consider changing in future
-    let child = Command::new(format!("{gameserver}/start.sh")).spawn();
+    let mut output = Command::new("bash").arg(format!("gameservers/{gameserver}/start.sh")).spawn().expect("failed to start server");
 
-    match child {
-        Ok(mut child_process) => "Started the gameserver".to_string(),
-        Err(e) => "Failed to start the gameserver".to_string(),
+    let status = output.wait().expect("failed to wait for start script");
+
+    if status.success() {
+        "Started gameserver succesfully".to_string()
+    } else {
+        "Failed to start gameserver".to_string()
     }
 }
 
@@ -91,9 +94,11 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
             ..
         }) = options.first()
         {
+            // subcommand has further input
             if let Some(subcommand) = command.first() {
                 println!("running {}", subcommand.name);
                 dbg!(subcommand);
+                dbg!(name);
                 match name.to_owned() {
                     "list" => list_gameservers(),
                     "start" => {
@@ -113,10 +118,19 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
                     _ => "please provide a valid command".to_string(),
                 }
             } else {
-                "Please use one of the available commands".to_string()
+                "Please provide a valid command".to_string()
             }
         } else {
-            "Please use one of the available commands".to_string()
+            // subcommand has no further input
+            if let Some(ResolvedOption { name, .. }) = options.first() {
+                match name.to_owned() {
+                    "list" => list_gameservers(),
+                    _ => "please provide a valid command".to_string(),
+                }
+            } else {
+                println!("ResolvedOption has no options and no name.");
+                "Please provide a valid command".to_string()
+            }
         }
     } else {
         "You are not on the whitelist. Try asking a moderator or something.".to_string()
