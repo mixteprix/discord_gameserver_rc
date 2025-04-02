@@ -86,15 +86,15 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
     if whitelist.contains(&user.to_string()) {
         dbg!(options);
         if let Some(ResolvedOption {
+            name,
             value: ResolvedValue::SubCommand(command),
             ..
         }) = options.first()
         {
             if let Some(subcommand) = command.first() {
                 println!("running {}", subcommand.name);
-                dbg!(command);
                 dbg!(subcommand);
-                match subcommand.name {
+                match name.to_owned() {
                     "list" => list_gameservers(),
                     "start" => {
                         if let ResolvedValue::String(option) = subcommand.value {
