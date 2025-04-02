@@ -13,7 +13,7 @@ fn list_gameservers() -> String {
 
     let mut list: Vec<String> = Vec::new();
 
-    let entries = fs::read_dir("./").unwrap();
+    let entries = fs::read_dir("./gameservers/").unwrap();
     for entry in entries {
         let entry = entry.unwrap(); // Handle the Result
 
@@ -35,6 +35,27 @@ fn list_gameservers() -> String {
         list_string
     } else {
         "No gameservers are available at this time.".to_string()
+    }
+}
+
+fn stop_gameserver(gameserver: String) {
+    Command::new("bash")
+        .arg(format!("gameservers/{gameserver}/stop.sh"))
+        .spawn()
+        .expect("failed to start server");
+}
+
+fn stop_all_gameservers() {
+    let entries = fs::read_dir("./gameservers/").unwrap();
+
+    for entry in entries {
+        let entry = entry.unwrap(); // Handle the Result
+
+        // Check if the entry is a directory
+        if entry.file_type().unwrap().is_dir() {
+            let gameserver = entry.path().display().to_string().replace("./", "");
+            stop_gameserver(gameserver);
+        }
     }
 }
 
