@@ -92,6 +92,8 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
         {
             if let Some(subcommand) = command.first() {
                 println!("running {}", subcommand.name);
+                dbg!(command);
+                dbg!(subcommand);
                 match subcommand.name {
                     "list" => list_gameservers(),
                     "start" => {
