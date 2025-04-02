@@ -123,6 +123,8 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
         } else {
             // subcommand has no further input
             if let Some(ResolvedOption { name, .. }) = options.first() {
+                println!("no subcommands");
+                print!("{name}");
                 match name.to_owned() {
                     "list" => list_gameservers(),
                     _ => "please provide a valid command".to_string(),
