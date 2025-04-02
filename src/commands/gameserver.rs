@@ -43,7 +43,10 @@ fn start_gameserver(gameserver: String) -> String {
     // return Err("thing did not work") if it fails
 
     // spawning child may be unneccesary. consider changing in future
-    let mut output = Command::new("bash").arg(format!("gameservers/{gameserver}/start.sh")).spawn().expect("failed to start server");
+    let mut output = Command::new("bash")
+        .arg(format!("gameservers/{gameserver}/start.sh"))
+        .spawn()
+        .expect("failed to start server");
 
     let status = output.wait().expect("failed to wait for start script");
 
@@ -118,21 +121,22 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
                     _ => "please provide a valid command".to_string(),
                 }
             } else {
-                "Please provide a valid command".to_string()
+                // subcommand has no further input
+                if let Some(ResolvedOption { name, .. }) = options.first() {
+                    println!("no subcommands");
+                    print!("{name}");
+                    match name.to_owned() {
+                        "list" => list_gameservers(),
+                        _ => "please provide a valid command".to_string(),
+                    }
+                } else {
+                    println!("ResolvedOption has no options and no name.");
+                    "Please provide a valid command".to_string()
+                }
             }
         } else {
-            // subcommand has no further input
-            if let Some(ResolvedOption { name, .. }) = options.first() {
-                println!("no subcommands");
-                print!("{name}");
-                match name.to_owned() {
-                    "list" => list_gameservers(),
-                    _ => "please provide a valid command".to_string(),
-                }
-            } else {
-                println!("ResolvedOption has no options and no name.");
-                "Please provide a valid command".to_string()
-            }
+            println!("it should never get here");
+            "What? how?".to_string()
         }
     } else {
         "You are not on the whitelist. Try asking a moderator or something.".to_string()
