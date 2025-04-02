@@ -133,14 +133,12 @@ pub fn register() -> CreateCommand {
             CommandOptionType::SubCommand,
             "list",
             "Lists all available gameservers.",
-        )
-        .required(true),
+        ),
         CreateCommandOption::new(
             CommandOptionType::SubCommand,
             "start",
             "Starts a given gameserver.",
         )
-        .required(true)
         .add_sub_option(CreateCommandOption::new(
             CommandOptionType::String,
             "gameserver",
@@ -151,7 +149,6 @@ pub fn register() -> CreateCommand {
             "status",
             "Prints information on the currently active gameserver",
         )
-        .required(true)
         .add_sub_option(CreateCommandOption::new(
             CommandOptionType::String,
             "gameserver",
