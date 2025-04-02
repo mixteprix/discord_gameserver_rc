@@ -84,6 +84,7 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
     }
 
     if whitelist.contains(&user.to_string()) {
+        dbg!(options);
         if let Some(ResolvedOption {
             value: ResolvedValue::SubCommand(command),
             ..
