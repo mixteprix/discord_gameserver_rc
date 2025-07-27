@@ -1,4 +1,4 @@
 - [ ] manual stopping
 - [ ] no auto stopping on start
 - [ ] rating overhaul
-
+- [ ] GUILD_ID in .env doesn't actually do anything.

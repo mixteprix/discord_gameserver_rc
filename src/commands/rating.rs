@@ -1,3 +1,4 @@
+use core::num;
 use std::collections::{hash_map, HashMap};
 use std::hash::Hash;
 use std::u32;
@@ -9,11 +10,27 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::futures::channel;
 use serenity::model::application::{CommandOptionType, ResolvedOption, ResolvedValue};
 use serenity::prelude::*;
+use tabled::{Table, Tabled};
+
+
+#[derive(Tabled)]
+struct RatingEntity {
+    name: String,
+    avg: f32,
+    // median: f32,
+    // todo: more
+    total_posts: u32,
+}
+
 
 async fn get_messages(
     ctx: &Context,
     channel_id: serenity::all::ChannelId,
 ) -> Option<Vec<serenity::all::Message>> {
+
+    // todo: make this variable by input
+    let mut limit: u32 = 5;
+
     let mut messages: Vec<serenity::all::Message> = channel_id
         .messages(ctx, GetMessages::new().limit(100))
         .await
@@ -36,11 +53,16 @@ async fn get_messages(
         if channel_messages.is_empty() {
             break; // No more messages to fetch, break the loop
         }
+
+        if limit == 0 {
+            break; // limit, so discord does not block me
+        }
         // println!("{channel_messages:?}");
 
         // Set the last message ID for pagination
         last_message_id = channel_messages.last().unwrap().id;
         messages.append(&mut channel_messages);
+        limit -= 1;
     }
 
     if messages.is_empty() {
@@ -49,30 +71,66 @@ async fn get_messages(
     Option::Some(messages)
 }
 
-fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str, Vec<u8>>> {
+fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str, Vec<Vec<u8>>>> {
     // iterate over msg
     // users into lookup table
     // append score to vector
     // append in cronological order?
-    let mut reaction_data: std::collections::HashMap<&str, Vec<u8>> =
+    let mut reaction_data: std::collections::HashMap<&str, Vec<Vec<u8>>> =
         std::collections::HashMap::new();
 
     // make a vector of all scores given to each user
     for message in messages {
+        let mut message_reaction_data: Vec<u8> = vec![];
         for reaction in &message.reactions {
+            // if reaction is a rating
             if let ReactionType::Unicode(unicode) = &reaction.reaction_type {
-                if unicode.starts_with(&['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) { // todo: do exact match, rather than this nonsense.
-                    let score = reaction_data
-                        .entry(message.author.name.as_str())
-                        .or_insert(vec![unicode.as_bytes()[0] - 48]);
-                    score.push(unicode.as_bytes()[0] - 48);
-                } else if unicode == "🔟" {
-                    let score = reaction_data
-                        .entry(message.author.name.as_str())
-                        .or_insert(vec![10]);
-                    score.push(10);
+                match unicode.as_str() {
+                    "0️⃣" => {
+                        message_reaction_data.push(0);
+                    }
+                    "1️⃣" => {
+                        message_reaction_data.push(1);
+                    }
+                    "2️⃣" => {
+                        message_reaction_data.push(2);
+                    }
+                    "3️⃣" => {
+                        message_reaction_data.push(3);
+                    }
+                    "4️⃣" => {
+                        message_reaction_data.push(4);
+                    }
+                    "5️⃣" => {
+                        message_reaction_data.push(5);
+                    }
+                    "6️⃣" => {
+                        message_reaction_data.push(6);
+                    }
+                    "7️⃣" => {
+                        message_reaction_data.push(7);
+                    }
+                    "8️⃣" => {
+                        message_reaction_data.push(8);
+                    }
+                    "9️⃣" => {
+                        message_reaction_data.push(9);
+                    }
+                    "🔟" => {
+                        message_reaction_data.push(10);
+                    }
+                    _ => {
+                        // not a rating
+                    }
                 }
             }
+        }
+
+        if !message_reaction_data.is_empty() {
+            reaction_data
+                .entry(message.author.name.as_str())
+                .or_insert(vec![])
+                .push(message_reaction_data)
         }
     }
 
@@ -91,12 +149,39 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
         .expect("did not find any messages");
 
     if let Some(reaction_data) = get_scores(&messages) {
-        let mut answer = "# Average Scores: \n".to_string();
+        // todo: consider making this a vector
+        let mut answer = "# Average Scores(of the last 500 messages): \n```\n".to_string();
+
+        let mut data: Vec<RatingEntity> = vec![];
+
         for (user, scores) in reaction_data {
-            let sum: u32 = scores.iter().map(|&x| x as u32).sum();
-            let avg: f32 = sum as f32 / scores.len() as f32;
-            answer += format!("{user}: {avg}\n").as_str();
+
+            let num_posts = scores.clone().len();
+            let sum: f32 = scores
+                .iter()
+                .map(|x| x.iter().map(|&x| x as f32).sum::<f32>() / x.len() as f32)
+                .sum();
+            let avg: f32 = sum as f32 / num_posts as f32;
+            for x in &scores {
+                println!("---");
+                println!("{:?}", x);
+                println!("---")
+            }
+            println!("{user}: avg={avg}, sum={sum}, total={}", num_posts);
+
+            // ignore all posters, who have posted less than 3 meals
+            if num_posts >= 3 {
+                // answer += format!("{user}: {avg}\n").as_str();
+                data.push(RatingEntity { name: user.to_owned(), avg: avg, total_posts: num_posts as u32 });
+            }
         }
+        data.sort_by(|a, b| a.avg.partial_cmp(&b.avg).unwrap());
+
+        let table = Table::new(data);
+
+        answer += &table.to_string().clone();
+        answer += "```\n";
+
         return answer;
     } else {
         return "No scores have been given in this channel. \n Try rating some post using the 1️⃣...🔟 emojis as reactions.".to_owned();
