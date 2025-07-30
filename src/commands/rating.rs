@@ -17,6 +17,7 @@ use tabled::{Table, Tabled};
 struct RatingEntity {
     name: String,
     avg: f32,
+    std: f32,
     // median: f32,
     // todo: more
     total_posts: u32,
@@ -70,6 +71,7 @@ async fn get_messages(
     }
     Option::Some(messages)
 }
+
 
 fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str, Vec<Vec<u8>>>> {
     // iterate over msg
@@ -157,22 +159,33 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
         for (user, scores) in reaction_data {
 
             let num_posts = scores.clone().len();
-            let sum: f32 = scores
+
+            // get the averages of all the posts
+            let averages: Vec<f32> = scores
                 .iter()
-                .map(|x| x.iter().map(|&x| x as f32).sum::<f32>() / x.len() as f32)
-                .sum();
+                .map(|x| x.iter().map(|&x| x as f32).sum::<f32>() / x.len() as f32).collect();
+
+            // get the average of post scores
+            let sum: f32 = averages.iter().sum();
             let avg: f32 = sum as f32 / num_posts as f32;
+
+            // get the standard deviation of post scores
+            let mut sn_sum: f32 = 0.0;
+            averages.iter().for_each(|x| sn_sum += (x - avg)*(x - avg));
+            let sn = (sn_sum / num_posts as f32).sqrt();
+
             for x in &scores {
                 println!("---");
                 println!("{:?}", x);
                 println!("---")
             }
+
             println!("{user}: avg={avg}, sum={sum}, total={}", num_posts);
 
             // ignore all posters, who have posted less than 3 meals
             if num_posts >= 3 {
                 // answer += format!("{user}: {avg}\n").as_str();
-                data.push(RatingEntity { name: user.to_owned(), avg: avg, total_posts: num_posts as u32 });
+                data.push(RatingEntity { name: user.to_owned(), avg: avg, std: sn, total_posts: num_posts as u32 });
             }
         }
         data.sort_by(|a, b| a.avg.partial_cmp(&b.avg).unwrap());
