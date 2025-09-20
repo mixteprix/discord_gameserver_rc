@@ -1,4 +1,6 @@
 - [ ] manual stopping
 - [ ] no auto stopping on start
-- [ ] rating overhaul
+- [x] rating overhaul
+    - [x] caching
+    - [ ] poster panel (stats over time maybe?)
 - [ ] GUILD_ID in .env doesn't actually do anything.

@@ -1,17 +1,38 @@
 use core::num;
 use std::collections::{hash_map, HashMap};
+use std::convert::TryInto;
+use std::fs::{self, File};
 use std::hash::Hash;
+use std::io::{Error, Write};
 use std::u32;
 
+use serde::{self, Deserialize, Serialize};
 use serenity::all::{
-    CommandInteraction, GetMessages, Message, MessageBuilder, Reaction, ReactionType,
+    CommandInteraction, ErrorResponse, GetMessages, GuildId, Message, MessageBuilder, MessageId, MessageReaction, Reaction, ReactionType, Timestamp, User
 };
 use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::futures::channel;
 use serenity::model::application::{CommandOptionType, ResolvedOption, ResolvedValue};
 use serenity::prelude::*;
 use tabled::{Table, Tabled};
+use tokio::fs::create_dir_all;
 
+pub trait MessageStuff {
+    fn is_eligible(&self) -> bool;
+}
+
+impl MessageStuff for Message {
+    fn is_eligible(&self) -> bool {
+        // attachments/ embeds dont't seem to be visible to bots.
+        // self.attachments
+        //     .first()
+        //     .and_then(|attachment| attachment.content_type.as_ref())
+        //     .map_or(false, |content_type| content_type.starts_with("image") && !self.author.bot)
+
+
+        !self.reactions.is_empty()
+    }
+}
 
 #[derive(Tabled)]
 struct RatingEntity {
@@ -23,12 +44,47 @@ struct RatingEntity {
     total_posts: u32,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+struct RatedPost {
+    id: MessageId,
+    author: User,
+    reactions: Vec<MessageReaction>,
+    timestamp: Timestamp,
+}
+
+impl PartialEq for RatedPost {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+fn merge_cache_and_new(old: &Vec<RatedPost>, new: &Vec<RatedPost>) -> Vec<RatedPost> {
+    // todo: maybe optimise: old should usually contain more entries than new, so cloning old and writing new into it when appropriate may be preferable.
+    let mut merged_posts: Vec<RatedPost> = new.clone();
+
+    for post in old {
+        if !new.contains(&post) {
+            merged_posts.push(post.clone());
+        }
+    }
+
+    merged_posts
+}
+
+fn get_path(guild_id: GuildId, channel_id: serenity::all::ChannelId) -> String {
+        let path = format!(
+            "./cache/{}/{}/rated_posts.json",
+            guild_id.to_string(),
+            channel_id.to_string()
+        );
+        println!("{}", path);
+        path
+}
 
 async fn get_messages(
     ctx: &Context,
     channel_id: serenity::all::ChannelId,
 ) -> Option<Vec<serenity::all::Message>> {
-
     // todo: make this variable by input
     let mut limit: u32 = 5;
 
@@ -37,10 +93,11 @@ async fn get_messages(
         .await
         .expect("could not get messages");
     if messages.is_empty() {
+        println!("no messages retrieved (empty).");
         return None;
     }
     println!("{messages:?}");
-    let mut last_message_id = messages.last().unwrap().id;
+    let mut last_message_id = messages.last().expect("failed to get last message id.").id;
 
     loop {
         // Fetch messages in batches of 100
@@ -61,65 +118,128 @@ async fn get_messages(
         // println!("{channel_messages:?}");
 
         // Set the last message ID for pagination
-        last_message_id = channel_messages.last().unwrap().id;
+        last_message_id = channel_messages.last().expect("failed to get last message id.").id;
         messages.append(&mut channel_messages);
         limit -= 1;
     }
 
     if messages.is_empty() {
+        println!("messages empty.");
         return Option::None;
     }
     Option::Some(messages)
 }
 
+async fn update_cache(
+    ctx: &Context,
+    channel_id: serenity::all::ChannelId,
+    guild_id: GuildId
+) -> Result<(), String> {
+    if let Some(messages) = get_messages(ctx, channel_id).await {
+        let mut rated_posts: Vec<RatedPost> = vec![];
 
-fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str, Vec<Vec<u8>>>> {
+        for msg in messages.clone() {
+            if msg.is_eligible() {
+                rated_posts.push(RatedPost {
+                    id: msg.id,
+                    author: msg.author,
+                    reactions: msg.reactions,
+                    timestamp: msg.timestamp,
+                });
+            }
+        }
+
+        if rated_posts.is_empty() {
+            print!("no eligible messages retrieved.");
+            return Err("No eligible messages retrieved.".to_owned());
+        }
+
+        // todo: probably this elsewhere
+        // let cachedata = serde_json::ser::to_string_pretty(&rated_posts).unwrap();
+
+        let cache_file_path: String = get_path(guild_id, channel_id);
+
+        if fs::exists(&cache_file_path).expect("existence of cache file could not be determined.") {
+            println!("cache file at {} exists.", &cache_file_path);
+            let cached_data_old: Vec<RatedPost> =
+                serde_json::from_str(&fs::read_to_string(&cache_file_path).expect(&format!("could not read file at {cache_file_path}"))).expect("could not deserialize cached file.");
+
+            merge_cache_and_new(&cached_data_old, &rated_posts);
+
+            let cachedata = serde_json::ser::to_string_pretty(&rated_posts).expect("failed to serialize data to cache. (file found)");
+
+            fs::write(&cache_file_path, cachedata).expect("faled to write to cache. (file found)");
+
+        } else {
+            println!("no cache file at {}, creating a new one.", &cache_file_path);
+
+            create_dir_all(std::path::Path::new(&cache_file_path).parent().unwrap_or_else(|| std::path::Path::new(""))).await.expect("failed to create parent dir for cache.");
+
+            let cachedata = serde_json::ser::to_string_pretty(&rated_posts).expect("failed to serialize data to cache. (no file found)");
+            fs::write(&cache_file_path, cachedata).expect("failed to write to cache. (no file found)");
+        }
+
+        return Ok(());
+    } else {
+        println!("no messages retrieved.");
+        return Err("No messages retrieved.".to_owned());
+    }
+}
+
+async fn get_rated_posts_from_cache (guild_id: GuildId, channel_id: serenity::all::ChannelId) -> Option<Vec<RatedPost>> {
+    let cache_path = get_path(guild_id, channel_id);
+
+    serde_json::from_str(&fs::read_to_string(cache_path).unwrap()).unwrap()
+}
+
+fn get_scores(messages: &Vec<RatedPost>) -> Option<std::collections::HashMap<&str, Vec<Vec<u64>>>> {
     // iterate over msg
     // users into lookup table
     // append score to vector
     // append in cronological order?
-    let mut reaction_data: std::collections::HashMap<&str, Vec<Vec<u8>>> =
+    let mut reaction_data: std::collections::HashMap<&str, Vec<Vec<u64>>> =
         std::collections::HashMap::new();
 
     // make a vector of all scores given to each user
     for message in messages {
-        let mut message_reaction_data: Vec<u8> = vec![];
+        let mut message_reaction_data: Vec<u64> = vec![];
         for reaction in &message.reactions {
             // if reaction is a rating
             if let ReactionType::Unicode(unicode) = &reaction.reaction_type {
+                let num_reacts = reaction.count;
                 match unicode.as_str() {
                     "0️⃣" => {
                         message_reaction_data.push(0);
                     }
                     "1️⃣" => {
-                        message_reaction_data.push(1);
+                        message_reaction_data.push(1 * num_reacts);
                     }
                     "2️⃣" => {
-                        message_reaction_data.push(2);
+                        message_reaction_data.push(2 * num_reacts);
                     }
                     "3️⃣" => {
-                        message_reaction_data.push(3);
+                        message_reaction_data.push(3 * num_reacts);
                     }
                     "4️⃣" => {
-                        message_reaction_data.push(4);
+                        message_reaction_data.push(4 * num_reacts);
                     }
                     "5️⃣" => {
-                        message_reaction_data.push(5);
+                        message_reaction_data.push(5 * num_reacts);
                     }
                     "6️⃣" => {
-                        message_reaction_data.push(6);
+                        message_reaction_data.push(6 * num_reacts);
                     }
                     "7️⃣" => {
-                        message_reaction_data.push(7);
+                        message_reaction_data.push(7 * num_reacts);
                     }
                     "8️⃣" => {
-                        message_reaction_data.push(8);
+                        message_reaction_data.push(8 * num_reacts);
                     }
                     "9️⃣" => {
-                        message_reaction_data.push(9);
+                        message_reaction_data.push(9 * num_reacts);
                     }
                     "🔟" => {
-                        message_reaction_data.push(10);
+                        message_reaction_data.push(10 * num_reacts);
                     }
                     _ => {
                         // not a rating
@@ -146,9 +266,13 @@ fn get_scores(messages: &Vec<Message>) -> Option<std::collections::HashMap<&str,
 pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
     let channel_id = command.channel_id;
 
-    let messages = get_messages(ctx, channel_id)
-        .await
-        .expect("did not find any messages");
+    if let Ok(_) = update_cache(ctx, channel_id, command.guild_id.unwrap()).await {
+    } else {
+        println!("failed to get new messages.");
+        return "failed to get new messages".to_string();
+    }
+    
+    let messages = get_rated_posts_from_cache(command.guild_id.unwrap(), channel_id).await.unwrap();
 
     if let Some(reaction_data) = get_scores(&messages) {
         // todo: consider making this a vector
@@ -157,13 +281,13 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
         let mut data: Vec<RatingEntity> = vec![];
 
         for (user, scores) in reaction_data {
-
             let num_posts = scores.clone().len();
 
             // get the averages of all the posts
             let averages: Vec<f32> = scores
                 .iter()
-                .map(|x| x.iter().map(|&x| x as f32).sum::<f32>() / x.len() as f32).collect();
+                .map(|x| x.iter().map(|&x| x as f32).sum::<f32>() / x.len() as f32)
+                .collect();
 
             // get the average of post scores
             let sum: f32 = averages.iter().sum();
@@ -171,7 +295,9 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
 
             // get the standard deviation of post scores
             let mut sn_sum: f32 = 0.0;
-            averages.iter().for_each(|x| sn_sum += (x - avg)*(x - avg));
+            averages
+                .iter()
+                .for_each(|x| sn_sum += (x - avg) * (x - avg));
             let sn = (sn_sum / num_posts as f32).sqrt();
 
             for x in &scores {
@@ -185,7 +311,12 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
             // ignore all posters, who have posted less than 3 meals
             if num_posts >= 3 {
                 // answer += format!("{user}: {avg}\n").as_str();
-                data.push(RatingEntity { name: user.to_owned(), avg: avg, std: sn, total_posts: num_posts as u32 });
+                data.push(RatingEntity {
+                    name: user.to_owned(),
+                    avg: avg,
+                    std: sn,
+                    total_posts: num_posts as u32,
+                });
             }
         }
         data.sort_by(|a, b| a.avg.partial_cmp(&b.avg).unwrap());
