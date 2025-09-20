@@ -28,7 +28,9 @@ impl EventHandler for Handler {
             let content = match command.data.name.as_str() {
                 "id" => Some(commands::id::run(&command.data.options())),
                 "rating" => {
-                    let result = commands::rating::run(&ctx, &command);
+                    // for some reason async functions seems to eat options, hence clone is needed.
+                    let options = command.data.options().clone(); 
+                    let result = commands::rating::run(&options, &ctx, &command);
                     defered = true;
 
                     let data = CreateInteractionResponseMessage::new().content("working on it!");

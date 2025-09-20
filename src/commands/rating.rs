@@ -8,7 +8,7 @@ use std::u32;
 
 use serde::{self, Deserialize, Serialize};
 use serenity::all::{
-    CommandInteraction, ErrorResponse, GetMessages, GuildId, Message, MessageBuilder, MessageId, MessageReaction, Reaction, ReactionType, Timestamp, User
+    CommandInteraction, CommandOption, CommandType, ErrorResponse, GetMessages, GuildId, Message, MessageBuilder, MessageId, MessageReaction, Reaction, ReactionType, Timestamp, User
 };
 use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::futures::channel;
@@ -28,7 +28,6 @@ impl MessageStuff for Message {
         //     .first()
         //     .and_then(|attachment| attachment.content_type.as_ref())
         //     .map_or(false, |content_type| content_type.starts_with("image") && !self.author.bot)
-
 
         !self.reactions.is_empty()
     }
@@ -72,21 +71,22 @@ fn merge_cache_and_new(old: &Vec<RatedPost>, new: &Vec<RatedPost>) -> Vec<RatedP
 }
 
 fn get_path(guild_id: GuildId, channel_id: serenity::all::ChannelId) -> String {
-        let path = format!(
-            "./cache/{}/{}/rated_posts.json",
-            guild_id.to_string(),
-            channel_id.to_string()
-        );
-        println!("{}", path);
-        path
+    let path = format!(
+        "./cache/{}/{}/rated_posts.json",
+        guild_id.to_string(),
+        channel_id.to_string()
+    );
+    println!("{}", path);
+    path
 }
 
 async fn get_messages(
     ctx: &Context,
     channel_id: serenity::all::ChannelId,
+    number_to_update: u64,
 ) -> Option<Vec<serenity::all::Message>> {
     // todo: make this variable by input
-    let mut limit: u32 = 5;
+    let mut limit: u64 = number_to_update;
 
     let mut messages: Vec<serenity::all::Message> = channel_id
         .messages(ctx, GetMessages::new().limit(100))
@@ -118,7 +118,10 @@ async fn get_messages(
         // println!("{channel_messages:?}");
 
         // Set the last message ID for pagination
-        last_message_id = channel_messages.last().expect("failed to get last message id.").id;
+        last_message_id = channel_messages
+            .last()
+            .expect("failed to get last message id.")
+            .id;
         messages.append(&mut channel_messages);
         limit -= 1;
     }
@@ -133,9 +136,10 @@ async fn get_messages(
 async fn update_cache(
     ctx: &Context,
     channel_id: serenity::all::ChannelId,
-    guild_id: GuildId
+    guild_id: GuildId,
+    number_to_update: u64,
 ) -> Result<(), String> {
-    if let Some(messages) = get_messages(ctx, channel_id).await {
+    if let Some(messages) = get_messages(ctx, channel_id, number_to_update).await {
         let mut rated_posts: Vec<RatedPost> = vec![];
 
         for msg in messages.clone() {
@@ -161,22 +165,33 @@ async fn update_cache(
 
         if fs::exists(&cache_file_path).expect("existence of cache file could not be determined.") {
             println!("cache file at {} exists.", &cache_file_path);
-            let cached_data_old: Vec<RatedPost> =
-                serde_json::from_str(&fs::read_to_string(&cache_file_path).expect(&format!("could not read file at {cache_file_path}"))).expect("could not deserialize cached file.");
+            let cached_data_old: Vec<RatedPost> = serde_json::from_str(
+                &fs::read_to_string(&cache_file_path)
+                    .expect(&format!("could not read file at {cache_file_path}")),
+            )
+            .expect("could not deserialize cached file.");
 
             merge_cache_and_new(&cached_data_old, &rated_posts);
 
-            let cachedata = serde_json::ser::to_string_pretty(&rated_posts).expect("failed to serialize data to cache. (file found)");
+            let cachedata = serde_json::ser::to_string_pretty(&rated_posts)
+                .expect("failed to serialize data to cache. (file found)");
 
             fs::write(&cache_file_path, cachedata).expect("faled to write to cache. (file found)");
-
         } else {
             println!("no cache file at {}, creating a new one.", &cache_file_path);
 
-            create_dir_all(std::path::Path::new(&cache_file_path).parent().unwrap_or_else(|| std::path::Path::new(""))).await.expect("failed to create parent dir for cache.");
+            create_dir_all(
+                std::path::Path::new(&cache_file_path)
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new("")),
+            )
+            .await
+            .expect("failed to create parent dir for cache.");
 
-            let cachedata = serde_json::ser::to_string_pretty(&rated_posts).expect("failed to serialize data to cache. (no file found)");
-            fs::write(&cache_file_path, cachedata).expect("failed to write to cache. (no file found)");
+            let cachedata = serde_json::ser::to_string_pretty(&rated_posts)
+                .expect("failed to serialize data to cache. (no file found)");
+            fs::write(&cache_file_path, cachedata)
+                .expect("failed to write to cache. (no file found)");
         }
 
         return Ok(());
@@ -186,7 +201,10 @@ async fn update_cache(
     }
 }
 
-async fn get_rated_posts_from_cache (guild_id: GuildId, channel_id: serenity::all::ChannelId) -> Option<Vec<RatedPost>> {
+async fn get_rated_posts_from_cache(
+    guild_id: GuildId,
+    channel_id: serenity::all::ChannelId,
+) -> Option<Vec<RatedPost>> {
     let cache_path = get_path(guild_id, channel_id);
 
     serde_json::from_str(&fs::read_to_string(cache_path).unwrap()).unwrap()
@@ -209,37 +227,59 @@ fn get_scores(messages: &Vec<RatedPost>) -> Option<std::collections::HashMap<&st
                 let num_reacts = reaction.count;
                 match unicode.as_str() {
                     "0️⃣" => {
-                        message_reaction_data.push(0);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(0);
+                        }
                     }
                     "1️⃣" => {
-                        message_reaction_data.push(1 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(1);
+                        }
                     }
                     "2️⃣" => {
-                        message_reaction_data.push(2 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(2);
+                        }
                     }
                     "3️⃣" => {
-                        message_reaction_data.push(3 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(3);
+                        }
                     }
                     "4️⃣" => {
-                        message_reaction_data.push(4 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(4);
+                        }
                     }
                     "5️⃣" => {
-                        message_reaction_data.push(5 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(5);
+                        }
                     }
                     "6️⃣" => {
-                        message_reaction_data.push(6 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(6);
+                        }
                     }
                     "7️⃣" => {
-                        message_reaction_data.push(7 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(7);
+                        }
                     }
                     "8️⃣" => {
-                        message_reaction_data.push(8 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(8);
+                        }
                     }
                     "9️⃣" => {
-                        message_reaction_data.push(9 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(9);
+                        }
                     }
                     "🔟" => {
-                        message_reaction_data.push(10 * num_reacts);
+                        for _ in 0..num_reacts {
+                            message_reaction_data.push(10);
+                        }
                     }
                     _ => {
                         // not a rating
@@ -263,20 +303,67 @@ fn get_scores(messages: &Vec<RatedPost>) -> Option<std::collections::HashMap<&st
     }
 }
 
-pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
+pub async fn run(
+    options: &[ResolvedOption<'_>],
+    ctx: &Context,
+    command: &CommandInteraction,
+) -> String {
     let channel_id = command.channel_id;
 
-    if let Ok(_) = update_cache(ctx, channel_id, command.guild_id.unwrap()).await {
+    let mut number_of_msg_to_fetch = 2;
+
+    dbg!(options);
+    if let Some(ResolvedOption {
+        name,
+        value: ResolvedValue::SubCommand(command),
+        ..
+    }) = options.first()
+    {
+        // subcommand has further input
+        if let Some(subcommand) = command.first() {
+            println!("running {}", subcommand.name);
+            dbg!(subcommand);
+            dbg!(name);
+            match name.to_owned() {
+                "rating" => {
+                    if let ResolvedValue::Integer(option) = subcommand.value {
+                        if option < 0 {
+                            return "Invalid input for number of messages(blocks) to update. (must be positive)".to_owned();
+                        } else {
+                            number_of_msg_to_fetch = option - 1;
+                        }
+                    } else {
+                        return "Invalid input for number of messages(blocks) to update.".to_owned();
+                    }
+                }
+                _ => {}
+            }
+        }
+    };
+
+
+    if let Ok(_) = update_cache(
+        ctx,
+        channel_id,
+        command.guild_id.unwrap(),
+        number_of_msg_to_fetch
+            .try_into()
+            .expect("i64 input could not be converted to u64"),
+    )
+    .await
+    {
     } else {
         println!("failed to get new messages.");
         return "failed to get new messages".to_string();
     }
-    
-    let messages = get_rated_posts_from_cache(command.guild_id.unwrap(), channel_id).await.unwrap();
+
+    let messages = get_rated_posts_from_cache(command.guild_id.unwrap(), channel_id)
+        .await
+        .unwrap();
 
     if let Some(reaction_data) = get_scores(&messages) {
         // todo: consider making this a vector
-        let mut answer = "# Average Scores(of the last 500 messages): \n```\n".to_string();
+        let mut answer = format!("# Average Scores(last {} new, rest is cached): \n```\n", number_of_msg_to_fetch*100);
 
         let mut data: Vec<RatingEntity> = vec![];
 
@@ -339,6 +426,23 @@ pub async fn run(ctx: &Context, command: &CommandInteraction) -> String {
 }
 
 pub fn register() -> CreateCommand {
+    let subcommands = vec![
+        CreateCommandOption::new(
+            CommandOptionType::SubCommand,
+            "rating",
+            "Rates posts and returns a table.",
+        )
+        .add_sub_option(CreateCommandOption::new(
+            CommandOptionType::Integer,
+            "update",
+            "The number of posts (×100) to update.",
+        )),
+
+    ];
+
     CreateCommand::new("rating")
         .description("Display the average ratings per user in this channel.")
+        .set_options(subcommands)
+
+    
 }
