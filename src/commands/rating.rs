@@ -186,7 +186,7 @@ async fn update_cache(
             )
             .expect("could not deserialize cached file.");
 
-            merge_cache_and_new(&cached_data_old, &rated_posts);
+            rated_posts = merge_cache_and_new(&cached_data_old, &rated_posts);
 
             let cachedata = serde_json::ser::to_string_pretty(&rated_posts)
                 .expect("failed to serialize data to cache. (file found)");
