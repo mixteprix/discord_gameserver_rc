@@ -14,7 +14,7 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::futures::channel;
 use serenity::model::application::{CommandOptionType, ResolvedOption, ResolvedValue};
 use serenity::prelude::*;
-use tabled::{Table, Tabled};
+use tabled::{derive, Table, Tabled, settings::Style};
 use tokio::fs::create_dir_all;
 
 pub trait MessageStuff {
@@ -44,10 +44,25 @@ struct RatingEntity {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+struct MessageReactionShort {
+    count: u64,
+    reaction_type: ReactionType
+}
+
+impl From<MessageReaction> for MessageReactionShort {
+    fn from(value: MessageReaction) -> Self {
+        MessageReactionShort {
+            count: value.count,
+            reaction_type: value.reaction_type,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 struct RatedPost {
     id: MessageId,
     author: User,
-    reactions: Vec<MessageReaction>,
+    reactions: Vec<MessageReactionShort>,
     timestamp: Timestamp,
 }
 
@@ -147,7 +162,7 @@ async fn update_cache(
                 rated_posts.push(RatedPost {
                     id: msg.id,
                     author: msg.author,
-                    reactions: msg.reactions,
+                    reactions: msg.reactions.iter().map(|r| MessageReactionShort::from(r.to_owned())).collect(),
                     timestamp: msg.timestamp,
                 });
             }
@@ -363,7 +378,7 @@ pub async fn run(
 
     if let Some(reaction_data) = get_scores(&messages) {
         // todo: consider making this a vector
-        let mut answer = format!("# Average Scores(last {} new, rest is cached): \n```\n", number_of_msg_to_fetch*100);
+        let mut answer = format!("# Average Scores(last {}): \n```\n", number_of_msg_to_fetch*100);
 
         let mut data: Vec<RatingEntity> = vec![];
 
@@ -408,7 +423,8 @@ pub async fn run(
         }
         data.sort_by(|a, b| a.avg.partial_cmp(&b.avg).unwrap());
 
-        let table = Table::new(data);
+        let mut table = Table::new(data);
+        table.with(Style::markdown());
 
         answer += &table.to_string().clone();
         answer += "```\n";

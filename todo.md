@@ -3,4 +3,5 @@
 - [x] rating overhaul
     - [x] caching
     - [ ] poster panel (stats over time maybe?)
+- [ ] slice answer into multiple (may be too long depending on input)
 - [ ] GUILD_ID in .env doesn't actually do anything.
