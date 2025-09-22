@@ -1,6 +1,7 @@
 use core::num;
 use std::collections::{hash_map, HashMap};
 use std::convert::TryInto;
+use std::fmt::format;
 use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::{Error, Write};
@@ -14,6 +15,7 @@ use serenity::builder::{CreateCommand, CreateCommandOption};
 use serenity::futures::channel;
 use serenity::model::application::{CommandOptionType, ResolvedOption, ResolvedValue};
 use serenity::prelude::*;
+use tabled::settings::width::{self, WidthList};
 use tabled::{derive, Table, Tabled, settings::Style};
 use tokio::fs::create_dir_all;
 
@@ -34,10 +36,10 @@ impl MessageStuff for Message {
 }
 
 #[derive(Tabled)]
-struct RatingEntity {
+struct RatingDisplayEntity {
     name: String,
-    avg: f32,
-    std: f32,
+    avg: String,
+    std: String,
     // median: f32,
     // todo: more
     total_posts: u32,
@@ -380,7 +382,7 @@ pub async fn run(
         // todo: consider making this a vector
         let mut answer = format!("# Average Scores({} new, {} cached): \n```\n", number_of_msg_to_fetch*100, &messages.len());
 
-        let mut data: Vec<RatingEntity> = vec![];
+        let mut data: Vec<RatingDisplayEntity> = vec![];
 
         for (user, scores) in reaction_data {
             let num_posts = scores.clone().len();
@@ -413,10 +415,10 @@ pub async fn run(
             // ignore all posters, who have posted less than 3 meals
             if num_posts >= 3 {
                 // answer += format!("{user}: {avg}\n").as_str();
-                data.push(RatingEntity {
+                data.push(RatingDisplayEntity {
                     name: user.to_owned(),
-                    avg: avg,
-                    std: sn,
+                    avg: format!("{:.2}", avg),
+                    std: format!("{:.2}", sn),
                     total_posts: num_posts as u32,
                 });
             }
