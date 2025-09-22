@@ -378,7 +378,7 @@ pub async fn run(
 
     if let Some(reaction_data) = get_scores(&messages) {
         // todo: consider making this a vector
-        let mut answer = format!("# Average Scores(last {}): \n```\n", number_of_msg_to_fetch*100);
+        let mut answer = format!("# Average Scores({} new, {} cached): \n```\n", number_of_msg_to_fetch*100, &messages.len());
 
         let mut data: Vec<RatingEntity> = vec![];
 
