@@ -345,7 +345,7 @@ pub async fn run(
                         if option < 0 {
                             return "Invalid input for number of messages(blocks) to update. (must be positive)".to_owned();
                         } else {
-                            number_of_msg_to_fetch = option - 1;
+                            number_of_msg_to_fetch = option;
                         }
                     } else {
                         return "Invalid input for number of messages(blocks) to update.".to_owned();
@@ -361,7 +361,7 @@ pub async fn run(
         ctx,
         channel_id,
         command.guild_id.unwrap(),
-        number_of_msg_to_fetch
+        (number_of_msg_to_fetch-1)
             .try_into()
             .expect("i64 input could not be converted to u64"),
     )
