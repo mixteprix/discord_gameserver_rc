@@ -19,7 +19,7 @@ fn list_gameservers() -> String {
 
         // Check if the entry is a directory
         if entry.file_type().unwrap().is_dir() {
-            list.push(entry.path().display().to_string());
+            list.push(entry.file_name().display().to_string());
         }
     }
 
