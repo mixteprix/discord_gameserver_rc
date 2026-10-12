@@ -42,7 +42,7 @@ fn stop_gameserver(gameserver: String) {
     Command::new("bash")
         .arg(format!("gameservers/{gameserver}/stop.sh"))
         .spawn()
-        .expect("failed to start server");
+        .expect("failed to stop server");
 }
 
 fn stop_all_gameservers() {
@@ -139,6 +139,19 @@ pub fn run(options: &[ResolvedOption], user: UserId) -> String {
                             "Ok, which one tho?".to_string()
                         }
                     }
+                    "stop" => {
+                        if let ResolvedValue::String(option) = subcommand.value {
+                            if option == "all" {
+                                stop_all_gameservers();
+                                "Stopping all gameservers.".to_owned()
+                            } else {
+                                stop_gameserver(option.to_owned());
+                                "Stopping gameserver.".to_owned()
+                            }
+                        } else {
+                            "Ok, which one tho?".to_string()
+                        }
+                    }
                     _ => "please provide a valid command".to_string(),
                 }
             } else {
@@ -180,6 +193,16 @@ pub fn register() -> CreateCommand {
             CommandOptionType::String,
             "gameserver",
             "The gameserver you want to start.",
+        )),
+        CreateCommandOption::new(
+            CommandOptionType::SubCommand,
+            "stop",
+            "Stops a given gameserver. Or all running gameservers if 'all' is given",
+        )
+        .add_sub_option(CreateCommandOption::new(
+            CommandOptionType::String,
+            "gameserver",
+            "The gameserver you want to stop. (or 'all')",
         )),
         CreateCommandOption::new(
             CommandOptionType::SubCommand,
